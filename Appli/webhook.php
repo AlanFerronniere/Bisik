@@ -4,14 +4,16 @@ require_once 'db.php';
 
 use PhpMqtt\Client\MqttClient;
 
-header('Content-Type: application/json');
+// Assurer l'encodage UTF-8
+header('Content-Type: application/json; charset=utf-8');
 
 $id = $_GET['id'] ?? null;
-$param = $_GET['param'] ?? '';
+$param = isset($_GET['param']) ? urldecode($_GET['param']) : '';
+$param = mb_convert_encoding($param, 'UTF-8', 'UTF-8');
 $isTest = isset($_GET['test']);
 
 if (!$id) {
-    echo json_encode(['status' => 'error', 'message' => 'ID manquant']);
+    echo json_encode(['status' => 'error', 'message' => 'ID manquant'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -22,15 +24,16 @@ try {
     $choreo = $stmt->fetch();
 
     if (!$choreo) {
-        echo json_encode(['status' => 'error', 'message' => 'Chorégraphie introuvable']);
+        echo json_encode(['status' => 'error', 'message' => 'Chorégraphie introuvable'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
 
     $actions = json_decode($choreo['actions'], true);
 
-    // Remplacement dynamique des paramètres
+    // Remplacement dynamique des paramètres (avec support UTF-8)
     foreach ($actions as &$action) {
         if ($action['type'] === 'display' && isset($action['text'])) {
+            // Remplacer {param} avec le paramètre en UTF-8
             $action['text'] = str_replace('{param}', $param, $action['text']);
         }
     }
@@ -50,14 +53,14 @@ try {
         ->setPassword($password);
 
     $mqtt->connect($settings);
-    $payload = json_encode($actions);
+    $payload = json_encode($actions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $mqtt->publish($topic, $payload, 0);
     $mqtt->disconnect();
 
-    echo json_encode(['status' => 'success', 'message' => 'Notification envoyée', 'payload' => json_decode($payload, true)]);
+    echo json_encode(['status' => 'success', 'message' => 'Notification envoyée', 'payload' => json_decode($payload, true)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    echo json_encode(['status' => 'error', 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
 ?>

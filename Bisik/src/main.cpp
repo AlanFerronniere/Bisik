@@ -47,8 +47,10 @@ int irisOffsetY = 0;  // -4 to +4
 int blinkPhase = 0;   // 0=open, 1=closing, 2=closed, 3=opening
 int blinkProgress = 0; // 0-100 for smooth animation
 
+// Forward declarations
+String normalizeText(const char* text);
+
 void drawCatEye() {
-  if (!displayReady) return;
   
   // Draw outer eye (white) - very large
   display.fillCircle(64, 32, 26, SSD1306_WHITE);
@@ -118,11 +120,75 @@ void showStatus(const char* line1, const char* line2 = "") {
   if (!displayReady) return;
   display.clearDisplay();
   display.setCursor(0, 0);
-  display.println(line1);
+  
+  // Normaliser le texte pour éliminer les accents UTF-8
+  String normalizedLine1 = normalizeText(line1);
+  display.println(normalizedLine1.c_str());
+  
   if (line2 && line2[0] != '\0') {
-    display.println(line2);
+    String normalizedLine2 = normalizeText(line2);
+    display.println(normalizedLine2.c_str());
   }
   display.display();
+}
+
+// Normalise les caractères UTF-8 accentués en ASCII
+String normalizeText(const char* text) {
+  String result = "";
+  int i = 0;
+  while (text[i] != '\0') {
+    uint8_t c = (uint8_t)text[i];
+    
+    // Traiter les caractères UTF-8 multi-bytes
+    if (c >= 0xC0) {
+      uint8_t c1 = c;
+      uint8_t c2 = (i + 1 < 256) ? (uint8_t)text[i + 1] : 0;
+      
+      // ç (c cédille): C3 A7
+      if (c1 == 0xC3 && c2 == 0xA7) { result += 'c'; i += 2; continue; }
+      // Ç: C3 87
+      if (c1 == 0xC3 && c2 == 0x87) { result += 'C'; i += 2; continue; }
+      
+      // à: C3 A0, â: C3 A2, ä: C3 A4
+      if (c1 == 0xC3 && (c2 == 0xA0 || c2 == 0xA2 || c2 == 0xA4)) { result += 'a'; i += 2; continue; }
+      // À, Â, Ä: C3 80, C3 82, C3 84
+      if (c1 == 0xC3 && (c2 == 0x80 || c2 == 0x82 || c2 == 0x84)) { result += 'A'; i += 2; continue; }
+      
+      // é: C3 A9, è: C3 A8, ê: C3 AA, ë: C3 AB
+      if (c1 == 0xC3 && (c2 == 0xA9 || c2 == 0xA8 || c2 == 0xAA || c2 == 0xAB)) { result += 'e'; i += 2; continue; }
+      // É, È, Ê, Ë: C3 89, C3 88, C3 8A, C3 8B
+      if (c1 == 0xC3 && (c2 == 0x89 || c2 == 0x88 || c2 == 0x8A || c2 == 0x8B)) { result += 'E'; i += 2; continue; }
+      
+      // î: C3 AE, ï: C3 AF, ì: C3 AC, í: C3 AD
+      if (c1 == 0xC3 && (c2 == 0xAE || c2 == 0xAF || c2 == 0xAC || c2 == 0xAD)) { result += 'i'; i += 2; continue; }
+      // Î, Ï, Ì, Í: C3 8E, C3 8F, C3 8C, C3 8D
+      if (c1 == 0xC3 && (c2 == 0x8E || c2 == 0x8F || c2 == 0x8C || c2 == 0x8D)) { result += 'I'; i += 2; continue; }
+      
+      // ô: C3 B4, ö: C3 B6, ò: C3 B2, ó: C3 B3
+      if (c1 == 0xC3 && (c2 == 0xB4 || c2 == 0xB6 || c2 == 0xB2 || c2 == 0xB3)) { result += 'o'; i += 2; continue; }
+      // Ô, Ö, Ò, Ó: C3 94, C3 96, C3 92, C3 93
+      if (c1 == 0xC3 && (c2 == 0x94 || c2 == 0x96 || c2 == 0x92 || c2 == 0x93)) { result += 'O'; i += 2; continue; }
+      
+      // û: C3 BB, ü: C3 BC, ù: C3 B9, ú: C3 BA
+      if (c1 == 0xC3 && (c2 == 0xBB || c2 == 0xBC || c2 == 0xB9 || c2 == 0xBA)) { result += 'u'; i += 2; continue; }
+      // Û, Ü, Ù, Ú: C3 9B, C3 9C, C3 99, C3 9A
+      if (c1 == 0xC3 && (c2 == 0x9B || c2 == 0x9C || c2 == 0x99 || c2 == 0x9A)) { result += 'U'; i += 2; continue; }
+      
+      // ñ: C3 B1
+      if (c1 == 0xC3 && c2 == 0xB1) { result += 'n'; i += 2; continue; }
+      // Ñ: C3 91
+      if (c1 == 0xC3 && c2 == 0x91) { result += 'N'; i += 2; continue; }
+      
+      // Si on ne reconnaît pas le motif UTF-8, sauter le caractère
+      i += 2;
+      continue;
+    }
+    
+    // Caractères ASCII normaux
+    result += (char)c;
+    i++;
+  }
+  return result;
 }
 
 void logDfPlayerEvents() {
@@ -196,7 +262,9 @@ void executeChoreo(String jsonPayload) {
     if (strcmp(type, "display") == 0) {
       display.clearDisplay();
       display.setCursor(0, 0);
-      display.println(action["text"].as<const char*>());
+      const char* text = action["text"].as<const char*>();
+      String normalizedText = normalizeText(text);
+      display.println(normalizedText.c_str());
       display.display();
       if (action.containsKey("duration")) {
         delay(action["duration"].as<int>());
