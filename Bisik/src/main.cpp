@@ -38,6 +38,82 @@ HardwareSerial dfSerial(2);
 DFRobotDFPlayerMini dfPlayer;
 bool displayReady = false;
 
+// Idle animation state
+bool isIdle = true;
+unsigned long lastIdleMove = 0;
+unsigned long lastBlink = 0;
+int irisOffsetX = 0;  // -4 to +4
+int irisOffsetY = 0;  // -4 to +4
+int blinkPhase = 0;   // 0=open, 1=closing, 2=closed, 3=opening
+int blinkProgress = 0; // 0-100 for smooth animation
+
+void drawCatEye() {
+  if (!displayReady) return;
+  
+  // Draw outer eye (white) - very large
+  display.fillCircle(64, 32, 26, SSD1306_WHITE);
+  
+  // Draw iris (black) with offset - large round
+  int irisX = 64 + irisOffsetX;
+  int irisY = 32 + irisOffsetY;
+  display.fillCircle(irisX, irisY, 14, SSD1306_BLACK);
+  
+  // Draw blinking animation (top eyelid - fullscreen)
+  if (blinkPhase > 0) {
+    int eyelidY = (blinkProgress * 64 / 100); // Move down as we close (0-64px fullscreen)
+    display.fillRect(0, 0, 128, eyelidY, SSD1306_BLACK);
+  }
+}
+
+void animateIdleEye() {
+  unsigned long now = millis();
+  
+  // Move iris every 500ms
+  if (now - lastIdleMove > 500) {
+    lastIdleMove = now;
+    
+    // Random small movements within a range
+    irisOffsetX = random(-5, 6);
+    irisOffsetY = random(-4, 5);
+    
+    // Occasional blink (20% chance per movement, every 3-5 seconds)
+    if (random(100) < 20 && blinkPhase == 0) {
+      blinkPhase = 1;
+      lastBlink = now;
+      blinkProgress = 0;
+    }
+  }
+  
+  // Blink animation state machine
+  if (blinkPhase == 1) {
+    // Closing phase (150ms)
+    blinkProgress = min(100, (int)((now - lastBlink) / 1.5));
+    if (blinkProgress >= 100) {
+      blinkPhase = 2;
+      lastBlink = now;
+    }
+  } else if (blinkPhase == 2) {
+    // Closed phase (100ms)
+    blinkProgress = 100;
+    if ((now - lastBlink) > 100) {
+      blinkPhase = 3;
+      lastBlink = now;
+    }
+  } else if (blinkPhase == 3) {
+    // Opening phase (150ms)
+    blinkProgress = max(0, (int)(100 - (now - lastBlink) / 1.5));
+    if (blinkProgress <= 0) {
+      blinkPhase = 0;
+      blinkProgress = 0;
+    }
+  }
+  
+  // Redraw screen
+  display.clearDisplay();
+  drawCatEye();
+  display.display();
+}
+
 void showStatus(const char* line1, const char* line2 = "") {
   if (!displayReady) return;
   display.clearDisplay();
@@ -101,12 +177,15 @@ void playSound(int track, int volume) {
 }
 
 void executeChoreo(String jsonPayload) {
+  isIdle = false;  // Mark as no longer idle
+  
   DynamicJsonDocument doc(4096);
   DeserializationError error = deserializeJson(doc, jsonPayload);
 
   if (error) {
     Serial.print(F("deserializeJson() failed: "));
     Serial.println(error.f_str());
+    isIdle = true;  // Resume idle if parse fails
     return;
   }
 
@@ -147,6 +226,8 @@ void executeChoreo(String jsonPayload) {
 
   display.clearDisplay();
   display.display();
+  
+  isIdle = true;  // Resume idle after choreo completes
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -228,5 +309,11 @@ void loop() {
   }
   client.loop();
   logDfPlayerEvents();
+  
+  // Show idle animation when not executing choreo
+  if (isIdle) {
+    animateIdleEye();
+  }
+  
   delay(10);
 }
