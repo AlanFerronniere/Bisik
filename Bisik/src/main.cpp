@@ -9,8 +9,8 @@
 #include <DFRobotDFPlayerMini.h>
 
 // WiFi
-const char* ssid = "la_tete_dans_la_toile";
-const char* password = "concoulcabis";
+const char* ssid = "WIFI_LABO";
+const char* password = "EpsiWis2018!";
 
 // MQTT
 const char* mqtt_server = "mqtt.latetedanslatoile.fr";
@@ -134,6 +134,8 @@ void showStatus(const char* line1, const char* line2 = "") {
 
 // Normalise et affiche directement les caractères UTF-8 accentués en ASCII
 void printNormalized(const char* text) {
+  if (!displayReady || !text) return;
+  
   int i = 0;
   while (text[i] != '\0') {
     uint8_t c = (uint8_t)text[i];
@@ -367,14 +369,26 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
 void connectWiFi() {
   Serial.print("Connecting WiFi");
+  showStatus("Connexion WiFi...");
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
+  
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 40) {
     delay(500);
     Serial.print(".");
+    attempts++;
   }
-  Serial.println(" connected");
-  Serial.print("IP: ");
-  Serial.println(WiFi.localIP());
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println(" connected");
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println(" timeout");
+    showStatus("WiFi timeout", "Redemarrage...");
+    delay(2000);
+    ESP.restart();
+  }
 }
 
 void reconnect() {
@@ -397,6 +411,7 @@ void reconnect() {
 
 void setup() {
   Serial.begin(115200);
+  delay(1000); // Laisser le temps aux composants de s'initialiser
 
   Wire.begin(OLED_SDA, OLED_SCL);
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
@@ -411,13 +426,20 @@ void setup() {
     displayReady = true;
   }
 
+  showStatus("Init DFPlayer...");
   dfSerial.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
-  if (!dfPlayer.begin(dfSerial)) {
+  delay(500); // Délai important pour le DFPlayer
+  
+  if (!dfPlayer.begin(dfSerial, false, false)) { // Pas d'ACK pour éviter les blocages
     Serial.println("DFPlayer init failed: check wiring/SD");
+    showStatus("DFPlayer NOK", "Continue...");
+    delay(1000);
   } else {
     dfPlayer.volume(DEFAULT_VOLUME);
     dfPlayer.EQ(DFPLAYER_EQ_NORMAL);
     Serial.printf("DFPlayer ready, volume %d\n", DEFAULT_VOLUME);
+    showStatus("DFPlayer OK");
+    delay(500);
   }
 
   connectWiFi();
