@@ -9,8 +9,8 @@
 #include <DFRobotDFPlayerMini.h>
 
 // WiFi
-const char* ssid = "la_tete_dans_la_toile";
-const char* password = "concoulcabis";
+const char* ssid = "WIFI_LABO";
+const char* password = "EpsiWis2018!";
 
 // MQTT
 const char* mqtt_server = "mqtt.latetedanslatoile.fr";
@@ -19,7 +19,7 @@ const char* mqtt_user = "Epsi";
 const char* mqtt_pass = "EpsiWis2018!";
 const char* mqtt_topic = "bisik/henry";
 
-// Broches
+// Pins
 #define OLED_SDA 33
 #define OLED_SCL 25
 #define SCREEN_WIDTH 128
@@ -28,7 +28,7 @@ const char* mqtt_topic = "bisik/henry";
 #define DFPLAYER_RX 16
 #define DFPLAYER_TX 17
 
-constexpr int DEFAULT_VOLUME = 22; // Volume DFPlayer (0-30)
+constexpr int DEFAULT_VOLUME = 22; // DFPlayer volume (0-30)
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 WiFiClient espClient;
@@ -36,114 +36,114 @@ PubSubClient client(espClient);
 Servo myservo;
 HardwareSerial dfSerial(2);
 DFRobotDFPlayerMini dfPlayer;
-bool affichageInitialise = false;
+bool displayReady = false;
 
-// État d'animation au repos
-bool estRepos = true;
-unsigned long dernierMouvementRepos = 0;
-unsigned long dernierClignotement = 0;
-int decalageIrisX = 0;  // -4 à +4
-int decalageIrisY = 0;  // -4 à +4
-int phaseClignotement = 0;   // 0=ouvert, 1=fermeture, 2=fermé, 3=ouverture
-int progressionClignotement = 0; // 0-100 pour animation fluide
+// Idle animation state
+bool isIdle = true;
+unsigned long lastIdleMove = 0;
+unsigned long lastBlink = 0;
+int irisOffsetX = 0;  // -4 to +4
+int irisOffsetY = 0;  // -4 to +4
+int blinkPhase = 0;   // 0=open, 1=closing, 2=closed, 3=opening
+int blinkProgress = 0; // 0-100 for smooth animation
 
-// Déclarations anticipées
-String normaliserTexte(const char* texte);
-void afficherNormalise(const char* texte);
+// Forward declarations
+String normalizeText(const char* text);
+void printNormalized(const char* text);
 
-void dessinerOeilChat() {
+void drawCatEye() {
   
-  // Dessiner l'oeil externe (blanc) - très grand
+  // Draw outer eye (white) - very large
   display.fillCircle(64, 32, 26, SSD1306_WHITE);
   
-  // Dessiner l'iris (noir) avec décalage - rond large
-  int irisX = 64 + decalageIrisX;
-  int irisY = 32 + decalageIrisY;
+  // Draw iris (black) with offset - large round
+  int irisX = 64 + irisOffsetX;
+  int irisY = 32 + irisOffsetY;
   display.fillCircle(irisX, irisY, 14, SSD1306_BLACK);
   
-  // Dessiner animation de clignotement (paupière supérieure - plein écran)
-  if (phaseClignotement > 0) {
-    int positionPaupiereY = (progressionClignotement * 64 / 100); // Descendre en fermant (0-64px plein écran)
-    display.fillRect(0, 0, 128, positionPaupiereY, SSD1306_BLACK);
+  // Draw blinking animation (top eyelid - fullscreen)
+  if (blinkPhase > 0) {
+    int eyelidY = (blinkProgress * 64 / 100); // Move down as we close (0-64px fullscreen)
+    display.fillRect(0, 0, 128, eyelidY, SSD1306_BLACK);
   }
 }
 
-void animerOeilRepos() {
-  unsigned long maintenant = millis();
+void animateIdleEye() {
+  unsigned long now = millis();
   
-  // Déplacer l'iris tous les 500ms
-  if (maintenant - dernierMouvementRepos > 500) {
-    dernierMouvementRepos = maintenant;
+  // Move iris every 500ms
+  if (now - lastIdleMove > 500) {
+    lastIdleMove = now;
     
-    // Petits mouvements aléatoires dans une plage
-    decalageIrisX = random(-5, 6);
-    decalageIrisY = random(-4, 5);
+    // Random small movements within a range
+    irisOffsetX = random(-5, 6);
+    irisOffsetY = random(-4, 5);
     
-    // Clignotement occasionnel (20% de chance à chaque mouvement, tous les 3-5 secondes)
-    if (random(100) < 20 && phaseClignotement == 0) {
-      phaseClignotement = 1;
-      dernierClignotement = maintenant;
-      progressionClignotement = 0;
+    // Occasional blink (20% chance per movement, every 3-5 seconds)
+    if (random(100) < 20 && blinkPhase == 0) {
+      blinkPhase = 1;
+      lastBlink = now;
+      blinkProgress = 0;
     }
   }
   
-  // Machine d'état pour animation de clignotement
-  if (phaseClignotement == 1) {
-    // Phase de fermeture (150ms)
-    progressionClignotement = min(100, (int)((maintenant - dernierClignotement) / 1.5));
-    if (progressionClignotement >= 100) {
-      phaseClignotement = 2;
-      dernierClignotement = maintenant;
+  // Blink animation state machine
+  if (blinkPhase == 1) {
+    // Closing phase (150ms)
+    blinkProgress = min(100, (int)((now - lastBlink) / 1.5));
+    if (blinkProgress >= 100) {
+      blinkPhase = 2;
+      lastBlink = now;
     }
-  } else if (phaseClignotement == 2) {
-    // Phase fermé (100ms)
-    progressionClignotement = 100;
-    if ((maintenant - dernierClignotement) > 100) {
-      phaseClignotement = 3;
-      dernierClignotement = maintenant;
+  } else if (blinkPhase == 2) {
+    // Closed phase (100ms)
+    blinkProgress = 100;
+    if ((now - lastBlink) > 100) {
+      blinkPhase = 3;
+      lastBlink = now;
     }
-  } else if (phaseClignotement == 3) {
-    // Phase d'ouverture (150ms)
-    progressionClignotement = max(0, (int)(100 - (maintenant - dernierClignotement) / 1.5));
-    if (progressionClignotement <= 0) {
-      phaseClignotement = 0;
-      progressionClignotement = 0;
+  } else if (blinkPhase == 3) {
+    // Opening phase (150ms)
+    blinkProgress = max(0, (int)(100 - (now - lastBlink) / 1.5));
+    if (blinkProgress <= 0) {
+      blinkPhase = 0;
+      blinkProgress = 0;
     }
   }
   
-  // Redessiner l'écran
+  // Redraw screen
   display.clearDisplay();
-  dessinerOeilChat();
+  drawCatEye();
   display.display();
 }
 
-void afficherEtat(const char* ligne1, const char* ligne2 = "") {
-  if (!affichageInitialise) return;
+void showStatus(const char* line1, const char* line2 = "") {
+  if (!displayReady) return;
   display.clearDisplay();
   display.setCursor(0, 0);
   
   // Normaliser et afficher le texte directement
-  afficherNormalise(ligne1);
+  printNormalized(line1);
   
-  if (ligne2 && ligne2[0] != '\0') {
+  if (line2 && line2[0] != '\0') {
     display.println();
-    afficherNormalise(ligne2);
+    printNormalized(line2);
   }
   display.display();
 }
 
 // Normalise et affiche directement les caractères UTF-8 accentués en ASCII
-void afficherNormalise(const char* texte) {
-  if (!affichageInitialise || !texte) return;
+void printNormalized(const char* text) {
+  if (!displayReady || !text) return;
   
   int i = 0;
-  while (texte[i] != '\0') {
-    uint8_t c = (uint8_t)texte[i];
+  while (text[i] != '\0') {
+    uint8_t c = (uint8_t)text[i];
     
-    // Traiter les caractères UTF-8 multi-octets
+    // Traiter les caractères UTF-8 multi-bytes
     if (c >= 0xC0 && (i + 1) < 512) {
       uint8_t c1 = c;
-      uint8_t c2 = (uint8_t)texte[i + 1];
+      uint8_t c2 = (uint8_t)text[i + 1];
       
       char replacement = 0;
       
@@ -193,16 +193,16 @@ void afficherNormalise(const char* texte) {
 }
 
 // Normalise les caractères UTF-8 accentués en ASCII
-String normaliserTexte(const char* texte) {
-  String resultat = "";
+String normalizeText(const char* text) {
+  String result = "";
   int i = 0;
-  while (texte[i] != '\0') {
-    uint8_t c = (uint8_t)texte[i];
+  while (text[i] != '\0') {
+    uint8_t c = (uint8_t)text[i];
     
-    // Traiter les caractères UTF-8 multi-octets
+    // Traiter les caractères UTF-8 multi-bytes
     if (c >= 0xC0 && (i + 1) < 512) {
       uint8_t c1 = c;
-      uint8_t c2 = (uint8_t)texte[i + 1];
+      uint8_t c2 = (uint8_t)text[i + 1];
       
       char replacement = 0;
       
@@ -236,7 +236,7 @@ String normaliserTexte(const char* texte) {
       else if (c1 == 0xC3 && c2 == 0x91) replacement = 'N';
       
       if (replacement) {
-        resultat += replacement;
+        result += replacement;
         i += 2;
       } else {
         i += 2;
@@ -245,33 +245,33 @@ String normaliserTexte(const char* texte) {
     }
     
     // Caractères ASCII normaux
-    resultat += (char)c;
+    result += (char)c;
     i++;
   }
-  return resultat;
+  return result;
 }
 
-void journaliserEvenementsDFPlayer() {
+void logDfPlayerEvents() {
   while (dfPlayer.available()) {
     uint8_t type = dfPlayer.readType();
-    int valeur = dfPlayer.read();
+    int value = dfPlayer.read();
     if (type == DFPlayerPlayFinished) {
-      Serial.printf("Piste %d terminée\n", valeur);
+      Serial.printf("Track %d finished\n", value);
     } else if (type == DFPlayerError) {
-      Serial.printf("Erreur DFPlayer %d\n", valeur);
+      Serial.printf("DFPlayer error %d\n", value);
     } else if (type == DFPlayerCardRemoved) {
-      Serial.println("Carte SD retirée");
+      Serial.println("SD card removed");
     } else if (type == DFPlayerCardInserted) {
-      Serial.println("Carte SD insérée");
+      Serial.println("SD card inserted");
     } else if (type == DFPlayerCardOnline) {
-      Serial.println("Carte SD en ligne");
+      Serial.println("SD card online");
     }
   }
 }
 
-void jouerSon(int piste, int volume) {
-  if (piste < 1) {
-    Serial.println("Piste invalide");
+void playSound(int track, int volume) {
+  if (track < 1) {
+    Serial.println("Invalid track");
     return;
   }
 
@@ -279,22 +279,22 @@ void jouerSon(int piste, int volume) {
     dfPlayer.volume(volume);
   }
 
-  Serial.printf("Lecture de la piste %d à volume %d\n", piste, volume);
-  dfPlayer.play(piste);
+  Serial.printf("Playing track %d at volume %d\n", track, volume);
+  dfPlayer.play(track);
   delay(300);
 
-  // Attendre jusqu'à ~15s pour la fin, quitter tôt en cas d'événement
-  unsigned long debut = millis();
-  while (millis() - debut < 15000) {
+  // Wait up to ~15s for completion, exit early on event
+  unsigned long start = millis();
+  while (millis() - start < 15000) {
     if (dfPlayer.available()) {
       uint8_t type = dfPlayer.readType();
-      int valeur = dfPlayer.read();
+      int value = dfPlayer.read();
       if (type == DFPlayerPlayFinished) {
-        Serial.printf("Piste %d terminée\n", valeur);
+        Serial.printf("Track %d finished\n", value);
         break;
       }
       if (type == DFPlayerError) {
-        Serial.printf("Erreur DFPlayer %d\n", valeur);
+        Serial.printf("DFPlayer error %d\n", value);
         break;
       }
     }
@@ -302,16 +302,16 @@ void jouerSon(int piste, int volume) {
   }
 }
 
-void executerChoreo(String chargeUtileJson) {
-  estRepos = false;  // Marquer comme non au repos
+void executeChoreo(String jsonPayload) {
+  isIdle = false;  // Mark as no longer idle
   
   DynamicJsonDocument doc(4096);
-  DeserializationError erreur = deserializeJson(doc, chargeUtileJson);
+  DeserializationError error = deserializeJson(doc, jsonPayload);
 
-  if (erreur) {
-    Serial.print(F("Erreur deserializeJson() : "));
-    Serial.println(erreur.f_str());
-    estRepos = true;  // Reprendre le repos en cas d'erreur d'analyse
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    isIdle = true;  // Resume idle if parse fails
     return;
   }
 
@@ -322,8 +322,8 @@ void executerChoreo(String chargeUtileJson) {
     if (strcmp(type, "display") == 0) {
       display.clearDisplay();
       display.setCursor(0, 0);
-      const char* texte = action["text"].as<const char*>();
-      afficherNormalise(texte);
+      const char* text = action["text"].as<const char*>();
+      printNormalized(text);
       display.display();
       if (action.containsKey("duration")) {
         delay(action["duration"].as<int>());
@@ -331,22 +331,22 @@ void executerChoreo(String chargeUtileJson) {
 
     } else if (strcmp(type, "servo") == 0) {
       int angle = action["angle"];
-      int vitesse = action["speed"]; // délai après la commande
+      int speed = action["speed"]; // delay after command
       myservo.attach(SERVO_PIN);
       delay(10);
       myservo.write(angle);
-      delay(vitesse);
+      delay(speed);
       myservo.detach();
 
     } else if (strcmp(type, "sound") == 0) {
-      int piste = action["track"];
+      int track = action["track"];
       int volume = action.containsKey("volume") ? action["volume"].as<int>() : DEFAULT_VOLUME;
-      jouerSon(piste, volume);
+      playSound(track, volume);
 
     } else if (strcmp(type, "wait") == 0) {
       delay(action["duration"].as<int>());
     } else {
-      Serial.print("Type d'action inconnu: ");
+      Serial.print("Unknown action type: ");
       Serial.println(type);
     }
   }
@@ -354,56 +354,56 @@ void executerChoreo(String chargeUtileJson) {
   display.clearDisplay();
   display.display();
   
-  estRepos = true;  // Reprendre le repos après la fin de la chorégraphie
+  isIdle = true;  // Resume idle after choreo completes
 }
 
-void rappel(char* topic, byte* payload, unsigned int length) {
+void callback(char* topic, byte* payload, unsigned int length) {
   String message = "";
   for (unsigned int i = 0; i < length; i++) {
     message += (char)payload[i];
   }
-  Serial.println("Chorégraphie reçue");
+  Serial.println("Choreo received");
   Serial.println(message);
-  executerChoreo(message);
+  executeChoreo(message);
 }
 
-void connecterWiFi() {
-  Serial.print("Connexion WiFi");
-  afficherEtat("Connexion WiFi...");
+void connectWiFi() {
+  Serial.print("Connecting WiFi");
+  showStatus("Connexion WiFi...");
   WiFi.begin(ssid, password);
   
-  int tentatives = 0;
-  while (WiFi.status() != WL_CONNECTED && tentatives < 40) {
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 40) {
     delay(500);
     Serial.print(".");
-    tentatives++;
+    attempts++;
   }
   
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println(" connecté");
+    Serial.println(" connected");
     Serial.print("IP: ");
     Serial.println(WiFi.localIP());
   } else {
     Serial.println(" timeout");
-    afficherEtat("WiFi timeout", "Redemarrage...");
+    showStatus("WiFi timeout", "Redemarrage...");
     delay(2000);
     ESP.restart();
   }
 }
 
-void reconnecter() {
+void reconnect() {
   while (!client.connected()) {
-    Serial.print("Tentative de connexion MQTT...");
-    String idClient = "Bisik-" + String(random(0xffff), HEX);
-    if (client.connect(idClient.c_str(), mqtt_user, mqtt_pass)) {
-      Serial.println("connecté");
+    Serial.print("Attempting MQTT connection...");
+    String clientId = "Bisik-" + String(random(0xffff), HEX);
+    if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
+      Serial.println("connected");
       client.subscribe(mqtt_topic);
-      afficherEtat("MQTT OK", mqtt_topic);
+      showStatus("MQTT OK", mqtt_topic);
     } else {
-      Serial.print("échec, rc=");
+      Serial.print("failed, rc=");
       Serial.print(client.state());
       String err = "rc=" + String(client.state());
-      afficherEtat("MQTT fail", err.c_str());
+      showStatus("MQTT fail", err.c_str());
       delay(2000);
     }
   }
@@ -415,51 +415,51 @@ void setup() {
 
   Wire.begin(OLED_SDA, OLED_SCL);
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println("Initialisation SSD1306 échouée");
+    Serial.println("SSD1306 init failed");
   } else {
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
     display.setCursor(0, 0);
-    display.println("Bisik démarrage...");
+    display.println("Bisik boot...");
     display.display();
-    affichageInitialise = true;
+    displayReady = true;
   }
 
-  afficherEtat("Init DFPlayer...");
+  showStatus("Init DFPlayer...");
   dfSerial.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
   delay(500); // Délai important pour le DFPlayer
   
   if (!dfPlayer.begin(dfSerial, false, false)) { // Pas d'ACK pour éviter les blocages
-    Serial.println("Initialisation DFPlayer échouée: vérifier le câblage/SD");
-    afficherEtat("DFPlayer NOK", "Continuer...");
+    Serial.println("DFPlayer init failed: check wiring/SD");
+    showStatus("DFPlayer NOK", "Continue...");
     delay(1000);
   } else {
     dfPlayer.volume(DEFAULT_VOLUME);
     dfPlayer.EQ(DFPLAYER_EQ_NORMAL);
-    Serial.printf("DFPlayer prêt, volume %d\n", DEFAULT_VOLUME);
-    afficherEtat("DFPlayer OK");
+    Serial.printf("DFPlayer ready, volume %d\n", DEFAULT_VOLUME);
+    showStatus("DFPlayer OK");
     delay(500);
   }
 
-  connecterWiFi();
+  connectWiFi();
   client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(rappel);
+  client.setCallback(callback);
   client.setBufferSize(2048);
 
-  afficherEtat("WiFi OK", "En attente MQTT");
+  showStatus("WiFi OK", "Waiting MQTT");
 }
 
 void loop() {
   if (!client.connected()) {
-    reconnecter();
+    reconnect();
   }
   client.loop();
-  journaliserEvenementsDFPlayer();
+  logDfPlayerEvents();
   
-  // Afficher l'animation de repos quand la chorégraphie n'est pas en cours
-  if (estRepos) {
-    animerOeilRepos();
+  // Show idle animation when not executing choreo
+  if (isIdle) {
+    animateIdleEye();
   }
   
   delay(10);
