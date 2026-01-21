@@ -48,7 +48,6 @@ int phaseClignotement = 0;   // 0=ouvert, 1=fermeture, 2=fermé, 3=ouverture
 int progressionClignotement = 0; // 0-100 pour animation fluide
 
 // Déclarations anticipées
-String normaliserTexte(const char* texte);
 void afficherNormalise(const char* texte);
 
 void dessinerOeilChat() {
@@ -192,64 +191,6 @@ void afficherNormalise(const char* texte) {
   }
 }
 
-// Normalise les caractères UTF-8 accentués en ASCII
-String normaliserTexte(const char* texte) {
-  String resultat = "";
-  int i = 0;
-  while (texte[i] != '\0') {
-    uint8_t c = (uint8_t)texte[i];
-    
-    // Traiter les caractères UTF-8 multi-octets
-    if (c >= 0xC0 && (i + 1) < 512) {
-      uint8_t c1 = c;
-      uint8_t c2 = (uint8_t)texte[i + 1];
-      
-      char replacement = 0;
-      
-      // ç (c cédille): C3 A7
-      if (c1 == 0xC3 && c2 == 0xA7) replacement = 'c';
-      // Ç: C3 87
-      else if (c1 == 0xC3 && c2 == 0x87) replacement = 'C';
-      // à, â, ä: C3 A0, C3 A2, C3 A4
-      else if (c1 == 0xC3 && (c2 == 0xA0 || c2 == 0xA2 || c2 == 0xA4)) replacement = 'a';
-      // À, Â, Ä: C3 80, C3 82, C3 84
-      else if (c1 == 0xC3 && (c2 == 0x80 || c2 == 0x82 || c2 == 0x84)) replacement = 'A';
-      // é, è, ê, ë: C3 A9, C3 A8, C3 AA, C3 AB
-      else if (c1 == 0xC3 && (c2 == 0xA9 || c2 == 0xA8 || c2 == 0xAA || c2 == 0xAB)) replacement = 'e';
-      // É, È, Ê, Ë: C3 89, C3 88, C3 8A, C3 8B
-      else if (c1 == 0xC3 && (c2 == 0x89 || c2 == 0x88 || c2 == 0x8A || c2 == 0x8B)) replacement = 'E';
-      // î, ï, ì, í: C3 AE, C3 AF, C3 AC, C3 AD
-      else if (c1 == 0xC3 && (c2 == 0xAE || c2 == 0xAF || c2 == 0xAC || c2 == 0xAD)) replacement = 'i';
-      // Î, Ï, Ì, Í: C3 8E, C3 8F, C3 8C, C3 8D
-      else if (c1 == 0xC3 && (c2 == 0x8E || c2 == 0x8F || c2 == 0x8C || c2 == 0x8D)) replacement = 'I';
-      // ô, ö, ò, ó: C3 B4, C3 B6, C3 B2, C3 B3
-      else if (c1 == 0xC3 && (c2 == 0xB4 || c2 == 0xB6 || c2 == 0xB2 || c2 == 0xB3)) replacement = 'o';
-      // Ô, Ö, Ò, Ó: C3 94, C3 96, C3 92, C3 93
-      else if (c1 == 0xC3 && (c2 == 0x94 || c2 == 0x96 || c2 == 0x92 || c2 == 0x93)) replacement = 'O';
-      // û, ü, ù, ú: C3 BB, C3 BC, C3 B9, C3 BA
-      else if (c1 == 0xC3 && (c2 == 0xBB || c2 == 0xBC || c2 == 0xB9 || c2 == 0xBA)) replacement = 'u';
-      // Û, Ü, Ù, Ú: C3 9B, C3 9C, C3 99, C3 9A
-      else if (c1 == 0xC3 && (c2 == 0x9B || c2 == 0x9C || c2 == 0x99 || c2 == 0x9A)) replacement = 'U';
-      // ñ: C3 B1
-      else if (c1 == 0xC3 && c2 == 0xB1) replacement = 'n';
-      // Ñ: C3 91
-      else if (c1 == 0xC3 && c2 == 0x91) replacement = 'N';
-      
-      if (replacement) {
-        resultat += replacement;
-        i += 2;
-      } else {
-        i += 2;
-      }
-      continue;
-    }
-    
-    // Caractères ASCII normaux
-    resultat += (char)c;
-    i++;
-  }
-  return resultat;
-}
 
 void journaliserEvenementsDFPlayer() {
   while (dfPlayer.available()) {
