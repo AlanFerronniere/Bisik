@@ -163,6 +163,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <input type="text" class="form-control form-control-sm mt-2" placeholder="Message (utiliser {param} pour variable)" data-field="text">
                 <div class="input-group input-group-sm mt-1">
+                    <span class="input-group-text">Taille texte</span>
+                    <input type="number" class="form-control" data-field="textSize" min="1" max="8" value="2">
+                </div>
+                <div class="input-group input-group-sm mt-1">
                     <span class="input-group-text">Durée (ms)</span>
                     <input type="number" class="form-control" data-field="duration" value="3000">
                 </div>
@@ -292,8 +296,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const action = { type: card.dataset.type };
                 card.querySelectorAll('[data-field]').forEach(input => {
                     const value = input.value;
-                    // Convertir en nombre pour track, angle, speed, duration, volume
-                    if(['track', 'angle', 'speed', 'duration', 'volume'].includes(input.dataset.field)) {
+                    // Convertir en nombre pour track, angle, speed, duration, volume, textSize
+                    if(['track', 'angle', 'speed', 'duration', 'volume', 'textSize'].includes(input.dataset.field)) {
                         action[input.dataset.field] = parseInt(value) || 0;
                     } else {
                         action[input.dataset.field] = value;

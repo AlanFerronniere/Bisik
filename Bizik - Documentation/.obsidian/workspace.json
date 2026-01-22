@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Cablage_ESP32.md",
+                "file": "Bisik.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Cablage_ESP32"
+              "title": "Bisik"
             }
           }
         ]
@@ -197,11 +197,11 @@
   },
   "active": "a1c920f2314a370b",
   "lastOpenFiles": [
+    "Bisik2.md",
+    "Bisik.md",
+    "Cablage_ESP32.md",
     "migrateHardwareComponent.prompt.prompt.md",
     "Pasted image 20260119194258.png",
-    "Bisik.md",
-    "Bisik2.md",
-    "Cablage_ESP32.md",
     "Migration_DFPlayer.md",
     "media/Pasted image 20260115182259.png",
     "media",

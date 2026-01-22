@@ -10,6 +10,8 @@ header('Content-Type: application/json; charset=utf-8');
 $id = $_GET['id'] ?? null;
 $param = isset($_GET['param']) ? urldecode($_GET['param']) : '';
 $param = mb_convert_encoding($param, 'UTF-8', 'UTF-8');
+// Supprimer les caractères problématiques pour l'encodage JSON/MQTT: [] {} ' "
+$param = str_replace(['[', ']', '{', '}', "'", '"'], '', $param);
 $isTest = isset($_GET['test']);
 
 if (!$id) {

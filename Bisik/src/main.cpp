@@ -49,6 +49,7 @@ int progressionClignotement = 0; // 0-100 pour animation fluide
 
 // Déclarations anticipées
 void afficherNormalise(const char* texte);
+void afficherAvecTailleEtRetourLigne(const char* texte, int textSize);
 
 void dessinerOeilChat() {
   
@@ -130,6 +131,22 @@ void afficherEtat(const char* ligne1, const char* ligne2 = "") {
   }
   display.display();
 }
+
+// Affiche du texte avec taille configurable
+void afficherAvecTailleEtRetourLigne(const char* texte, int textSize) {
+  if (!affichageInitialise || !texte) return;
+  
+  // Limiter la taille entre 1 et 8
+  if (textSize < 1) textSize = 1;
+  if (textSize > 8) textSize = 8;
+  
+  // Définir la taille de texte et afficher
+  display.setTextSize(textSize);
+  display.setCursor(0, 0);
+  display.println(texte);  // println pour retour à la ligne automatique
+}
+
+
 
 // Normalise et affiche directement les caractères UTF-8 accentués en ASCII
 void afficherNormalise(const char* texte) {
@@ -263,8 +280,17 @@ void executerChoreo(String chargeUtileJson) {
     if (strcmp(type, "display") == 0) {
       display.clearDisplay();
       display.setCursor(0, 0);
+      
+      // Lire textSize du JSON (défaut: 2)
+      int textSize = 2;
+      if (action.containsKey("textSize")) {
+        textSize = action["textSize"].as<int>();
+        if (textSize < 1) textSize = 1;
+        if (textSize > 8) textSize = 8;
+      }
+      
       const char* texte = action["text"].as<const char*>();
-      afficherNormalise(texte);
+      afficherAvecTailleEtRetourLigne(texte, textSize);
       display.display();
       if (action.containsKey("duration")) {
         delay(action["duration"].as<int>());
